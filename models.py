@@ -1,20 +1,27 @@
-from typing import Tuple
+from typing import Any
 
 
 class Zone:
 
-    def __init__(self, name: str, x: int, y: int, cost: int = 1,
-                 is_start: bool = False, is_end: bool = False) -> None:
-        self.name = name
-        self.x = x
-        self.y = y
-        self.cost = cost
+    def __init__(
+        self,
+        name: str,
+        x: int,
+        y: int,
+        cost: int = 1,
+        is_start: bool = False,
+        is_end: bool = False,
+    ) -> None:
+        self.name: str = name
+        self.x: int = x
+        self.y: int = y
+        self.cost: int = cost
         self.zone_type: str = 'normal'
         self.color: str = ""
-        self.max_drones = 1
-        self.is_start = is_start
-        self.is_end = is_end
-        self.zone_drones_count = 0
+        self.max_drones: int = 1
+        self.is_start: bool = is_start
+        self.is_end: bool = is_end
+        self.zone_drones_count: int = 0
 
     def _has_space(self) -> bool:
         if self.is_end:
@@ -22,42 +29,46 @@ class Zone:
         return self.zone_drones_count < self.max_drones
 
     def __str__(self) -> str:
-        return (f"{self.name}, {self.x, self.y}, {self.cost}, "
-                f"{self.zone_type}, {self.color}, {self.max_drones}")
+        return (
+            f"{self.name}, {(self.x, self.y)}, {self.cost}, "
+            f"{self.zone_type}, {self.color}, {self.max_drones}"
+        )
 
 
 class Connection:
 
     def __init__(self, name: str) -> None:
-        self.name = name
-        self.max_link_capacity = 1
-        self.conn_zone_drones_count = 0
+        self.name: str = name
+        self.max_link_capacity: int = 1
+        self.conn_zone_drones_count: int = 0
 
     def _has_space(self) -> bool:
         return self.conn_zone_drones_count < self.max_link_capacity
 
     def __str__(self) -> str:
-        return f"{self.name} , {self.max_link_capacity}"
+        return f"{self.name}, {self.max_link_capacity}"
 
 
 class Drone:
 
-    def __init__(self, id, coord: Tuple[int, int], curr_zone: Zone) -> None:
-        self.id = id
-        self.curr_zone = curr_zone
-        self.coord = coord
-        self.flight_timer = 0
-        self.arrived = False
-        self.zones = []
-        self.graph: dict = {}
-        self.active_connection = None
+    def __init__(
+        self, id: int, coord: tuple[int, int], curr_zone: Zone
+    ) -> None:
+        self.id: int = id
+        self.curr_zone: Zone | None = curr_zone
+        self.coord: tuple[int, int] = coord
+        self.flight_timer: int = 0
+        self.arrived: bool = False
+        self.zones: list[Zone] = []
+        self.graph: dict[Zone, list[tuple[Zone, Connection]]] = {}
+        self.active_connection: Connection | None = None
 
         # ── Dynamic re-routing support (wired in by main.py)
-        self.end_hub = None
-        self.zone_traffic: dict = {}
-        self.pathfinder = None
-        self._blocked_turns = 0
-        self._REROUTE_AFTER = 2
+        self.end_hub: Zone | None = None
+        self.zone_traffic: dict[Zone, int] = {}
+        self.pathfinder: Any | None = None
+        self._blocked_turns: float = 0.0
+        self._REROUTE_AFTER: float = 2.0
 
     # ── helpers
 
@@ -70,7 +81,9 @@ class Drone:
         return True
 
     def _get_connection_to(self, to_zone: Zone) -> Connection | None:
-        for neighbor, conn in self.graph[self.curr_zone]:
+        if self.curr_zone is None:
+            return None
+        for neighbor, conn in self.graph.get(self.curr_zone, []):
             if neighbor == to_zone:
                 return conn
         return None
@@ -91,7 +104,11 @@ class Drone:
           - New path is identical to current plan (pointless churn)
         Returns True if a genuinely different path was installed.
         """
-        if self.pathfinder is None or self.end_hub is None:
+        if (
+            self.pathfinder is None
+            or self.end_hub is None
+            or self.curr_zone is None
+        ):
             return False
 
         # Skip if this zone is a funnel with no real alternatives
@@ -101,8 +118,7 @@ class Drone:
             return False
 
         new_path = self.pathfinder.get_path(
-            self.curr_zone, self.end_hub,
-            self.graph, self.zone_traffic
+            self.curr_zone, self.end_hub, self.graph, self.zone_traffic
         )
         if not new_path or len(new_path) <= 1:
             return False
@@ -120,36 +136,35 @@ class Drone:
         for z in self.zones:
             self.zone_traffic[z] = self.zone_traffic.get(z, 0) + 1
 
-        self._blocked_turns = 0
+        self._blocked_turns = 0.0
         return True
 
     # ── main move logic
 
-    def _move(self):
+    def _move(self) -> str | None:
 
         # ── still in transit (cost-2 hold)
         if self.flight_timer > 0:
             self.flight_timer -= 1
-            if self.flight_timer == 0:
+            if self.flight_timer == 0 and self.active_connection:
                 self.active_connection.conn_zone_drones_count -= 1
                 self.active_connection = None
             label = self.zones[0].name if self.zones else 'transit'
             return f"D{self.id}-{label}"
 
-        if self.arrived or not self.zones:
+        if self.arrived or not self.zones or self.curr_zone is None:
             return None
 
         to_zone = self.zones[0]
 
         if not self._can_move_to(to_zone):
-            print(f"Drone {self.id} blocked: Zone {to_zone.name} full? "
-                  f"{not to_zone._has_space()}")
-
-            self._blocked_turns += .5
+            self._blocked_turns += 0.5
             if self._blocked_turns >= self._REROUTE_AFTER:
                 if self._try_reroute():
-                    print(f"Drone {self.id} "
-                          + f"rerouted from {self.curr_zone.name}")
+                    print(
+                        f"Drone {self.id} rerouted "
+                        f"from {self.curr_zone.name}"
+                    )
                     # Attempt the new next hop immediately this turn
                     if not self.zones:
                         return None
@@ -162,7 +177,10 @@ class Drone:
                 return None
 
         conn = self._get_connection_to(to_zone)
-        self._blocked_turns = 0
+        if not conn:
+            return None
+
+        self._blocked_turns = 0.0
         self._update_occupancy(to_zone, conn)
         self.zones.pop(0)
         self.curr_zone = to_zone
@@ -176,5 +194,6 @@ class Drone:
 
         if to_zone.is_end:
             self.arrived = True
+
         print(f"D{self.id}-{to_zone.name}")
         return f"D{self.id}-{to_zone.name}"

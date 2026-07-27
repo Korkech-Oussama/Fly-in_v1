@@ -367,7 +367,7 @@ class Parser:
     #  Step 6 – build adjacency graph                                     #
     # ------------------------------------------------------------------ #
 
-    def _build_lookup_table(self):
+    def _build_lookup_table(self) -> None:
         """build a look up table to quiqly find a zone by name"""
         self.name_to_zone = {zone.name: zone for zone in self.zones}
 

@@ -1,5 +1,7 @@
-from models import Zone
 import heapq
+from typing import Any
+
+from models import Zone
 
 
 class Pathfinder:
@@ -8,18 +10,22 @@ class Pathfinder:
     #  DIJKSTRA  (internal — supports node/edge exclusion for Yen's)
     # ─────────────────────────────────────────────────────────────────────────
     @staticmethod
-    def _dijkstra(start: Zone, end: Zone, graph: dict,
-                  excluded_nodes: set = None,
-                  excluded_edges: set = None) -> list | None:
+    def _dijkstra(
+        start: Zone,
+        end: Zone,
+        graph: dict[Zone, list[tuple[Zone, Any]]],
+        excluded_nodes: set[Zone] | None = None,
+        excluded_edges: set[tuple[Zone, Zone]] | None = None,
+    ) -> list[Zone] | None:
         if excluded_nodes is None:
             excluded_nodes = set()
         if excluded_edges is None:
             excluded_edges = set()
 
-        dist    = {start: 0.0}
-        prev    = {start: None}
-        visited = set()
-        heap    = [(0.0, id(start), start)]
+        dist: dict[Zone, float] = {start: 0.0}
+        prev: dict[Zone, Zone | None] = {start: None}
+        visited: set[Zone] = set()
+        heap: list[tuple[float, int, Zone]] = [(0.0, id(start), start)]
 
         while heap:
             cost, _, zone = heapq.heappop(heap)
@@ -27,7 +33,8 @@ class Pathfinder:
                 continue
             visited.add(zone)
             if zone == end:
-                path, node = [], zone
+                path: list[Zone] = []
+                node: Zone | None = zone
                 while node is not None:
                     path.append(node)
                     node = prev[node]
@@ -62,8 +69,12 @@ class Pathfinder:
     #  YEN'S K-SHORTEST PATHS
     # ─────────────────────────────────────────────────────────────────────────
     @staticmethod
-    def k_shortest_paths(start: Zone, end: Zone, graph: dict,
-                         k: int = 10) -> list[list[Zone]]:
+    def k_shortest_paths(
+        start: Zone,
+        end: Zone,
+        graph: dict[Zone, list[tuple[Zone, Any]]],
+        k: int = 10,
+    ) -> list[list[Zone]]:
         def path_cost(path: list[Zone]) -> float:
             total = 0.0
             for zone in path[1:]:
@@ -80,8 +91,8 @@ class Pathfinder:
             return []
 
         confirmed: list[list[Zone]] = [first]
-        candidates: list[tuple]     = []
-        seen: set[tuple]            = {tuple(first)}
+        candidates: list[tuple[float, int, list[Zone]]] = []
+        seen: set[tuple[Zone, ...]] = {tuple(first)}
 
         for _ in range(k - 1):
             base_path = confirmed[-1]
@@ -89,26 +100,30 @@ class Pathfinder:
                 spur_node = base_path[spur_idx]
                 root_path = base_path[:spur_idx + 1]
 
-                excl_edges: set = set()
+                excl_edges: set[tuple[Zone, Zone]] = set()
                 for p in confirmed:
                     if len(p) > spur_idx and p[:spur_idx + 1] == root_path:
                         excl_edges.add((p[spur_idx], p[spur_idx + 1]))
 
-                excl_nodes: set = set(root_path[:-1])
+                excl_nodes: set[Zone] = set(root_path[:-1])
                 spur_path = Pathfinder._dijkstra(
-                    spur_node, end, graph,
+                    spur_node,
+                    end,
+                    graph,
                     excluded_nodes=excl_nodes,
                     excluded_edges=excl_edges,
                 )
                 if spur_path is None:
                     continue
 
-                full      = root_path[:-1] + spur_path
-                full_key  = tuple(full)
+                full = root_path[:-1] + spur_path
+                full_key = tuple(full)
                 if full_key not in seen:
                     seen.add(full_key)
-                    heapq.heappush(candidates,
-                                   (path_cost(full), id(full), full))
+                    heapq.heappush(
+                        candidates,
+                        (path_cost(full), id(full), full)
+                    )
 
             if not candidates:
                 break
@@ -135,20 +150,17 @@ class Pathfinder:
     #
     #  Fix — two-tier scoring:
     #    1. Primary sort: pure topology cost (shorter = better, traffic-free).
-    #       This keeps PATH_A and PATH_B (3 hops) strictly preferred over PATH_C
-    #       (5 hops) regardless of traffic state.
+    #       This keeps PATH_A and PATH_B (3 hops) strictly preferred over
+    #       PATH_C (5 hops) regardless of traffic state.
     #    2. Secondary sort: SHARED-node traffic penalty only.
     #       A shared node is one that appears on MORE THAN ONE candidate path.
-    #       These nodes (e.g. micro_gate1) genuinely accrue long-term congestion
-    #       because every drone passes through them. Non-shared intermediate nodes
-    #       are pipeline-spaced and self-clearing — penalising them is misleading.
-    #    3. Tie-breaking: when topology cost AND shared-node penalty are within
-    #       epsilon, round-robin through tied paths.
-    #       This enforces A/B/A/B/… alternation when both have equal topology cost.
+    #       These nodes genuinely accrue long-term congestion because every
+    #       drone passes through them. Non-shared nodes are pipeline-spaced
+    #       and self-clearing — penalising them is misleading.
+    #    3. Tie-breaking: when topology cost AND shared-node penalty are
+    #       within epsilon, round-robin through tied paths.
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Persistent round-robin counter (class-level, resets each simulation run
-    # via Pathfinder.reset())
     _rr_counter: int = 0
 
     @classmethod
@@ -168,14 +180,15 @@ class Pathfinder:
         return total
 
     @staticmethod
-    def _shared_penalty(path: list[Zone],
-                        all_paths: list[list[Zone]],
-                        traffic_dict: dict) -> float:
+    def _shared_penalty(
+        path: list[Zone],
+        all_paths: list[list[Zone]],
+        traffic_dict: dict[Zone, int]
+    ) -> float:
         """
         Penalty contribution from nodes shared across multiple candidate paths.
         Non-shared nodes are pipeline-spaced and self-clearing — ignored.
         """
-        # Count how many paths each zone appears in
         zone_path_count: dict[Zone, int] = {}
         for p in all_paths:
             for z in p[1:]:
@@ -184,10 +197,10 @@ class Pathfinder:
         penalty = 0.0
         for zone in path[1:]:
             if zone_path_count.get(zone, 0) <= 1:
-                continue   # unique to this path → self-clearing, skip
-            traffic  = traffic_dict.get(zone, 0)
+                continue
+            traffic = traffic_dict.get(zone, 0)
             capacity = max(zone.max_drones, 1)
-            occ      = traffic / capacity
+            occ = traffic / capacity
             penalty += occ * occ * 2.0
         return penalty
 
@@ -195,43 +208,41 @@ class Pathfinder:
     #  PUBLIC INTERFACE
     # ─────────────────────────────────────────────────────────────────────────
     @staticmethod
-    def get_path(start_hub: Zone, end_hub: Zone,
-                 graph_dict: dict, traffic_dict: dict,
-                 dispatch_turn: int = 1,
-                 k: int = 10) -> list[Zone] | None:
+    def get_path(
+        start_hub: Zone,
+        end_hub: Zone,
+        graph_dict: dict[Zone, list[tuple[Zone, Any]]],
+        traffic_dict: dict[Zone, int],
+        dispatch_turn: int = 1,
+        k: int = 10
+    ) -> list[Zone] | None:
         """
         Pick the best path for the next drone.
-
-        Selection order:
-          1. Lowest topology cost  (pure hop count / zone type weights)
-          2. Lowest shared-node traffic penalty
-          3. Round-robin among ties within epsilon
         """
-        paths = Pathfinder.k_shortest_paths(start_hub, end_hub, graph_dict, k=k)
+        paths = Pathfinder.k_shortest_paths(
+            start_hub, end_hub, graph_dict, k=k
+        )
         if not paths:
             return None
 
-        EPSILON = 0.05
+        epsilon = 0.05
 
-        # Score every candidate
         scored: list[tuple[float, float, int, list[Zone]]] = []
         for path in paths:
-            topo    = Pathfinder._topology_cost(path)
-            shared  = Pathfinder._shared_penalty(path, paths, traffic_dict)
+            topo = Pathfinder._topology_cost(path)
+            shared = Pathfinder._shared_penalty(path, paths, traffic_dict)
             scored.append((topo, shared, id(path), path))
 
         scored.sort(key=lambda x: (x[0], x[1]))
 
-        # Collect paths tied with the best on both dimensions
-        best_topo   = scored[0][0]
+        best_topo = scored[0][0]
         best_shared = scored[0][1]
         tied = [
             item for item in scored
-            if item[0] <= best_topo   + EPSILON
-            and item[1] <= best_shared + EPSILON
+            if item[0] <= best_topo + epsilon
+            and item[1] <= best_shared + epsilon
         ]
 
-        # Round-robin among tied paths
         chosen = tied[Pathfinder._rr_counter % len(tied)]
         Pathfinder._rr_counter += 1
 
