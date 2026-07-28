@@ -15,7 +15,7 @@ install:
 
 run:
 	@echo "Running the simulation..."
-	$(PYTHON) $(MAIN) $(MAP)
+	$(PYTHON) $(MAIN) $(MAP) capacity--info
 
 debug:
 	@echo "Starting debugger..."

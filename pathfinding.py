@@ -134,21 +134,7 @@ class Pathfinder:
 
     # ─────────────────────────────────────────────────────────────────────────
     #  SCORING
-    #
-    #  Why pure traffic penalty fails (the 47-turn problem):
-    #    All paths converge at micro_gate1, so its traffic penalty is equal
-    #    across all routes and cancels out. Only intermediate nodes differ.
-    #    But intermediate nodes (maze_a1, maze_b1 etc.) are NOT shared — each
-    #    path's nodes will be clear by the time the next drone arrives, because
-    #    the single-lane entry (start→gate_hell1, cap=1) spaces drones exactly
-    #    1 turn apart. A cap-1 node clears in 1 turn, so drone i+2 always finds
-    #    maze_a1 empty even though traffic_dict still shows 1.
-    #
-    #    Result: static traffic overcounts congestion on short paths and makes
-    #    the 5-hop PATH_C look cheaper than the 3-hop PATH_A/B after both are
-    #    assigned once. PATH_C's 2 extra hops delay drone 25 by 2 turns → 47.
-    #
-    #  Fix — two-tier scoring:
+    #    two-tier scoring:
     #    1. Primary sort: pure topology cost (shorter = better, traffic-free).
     #       This keeps PATH_A and PATH_B (3 hops) strictly preferred over
     #       PATH_C (5 hops) regardless of traffic state.

@@ -301,7 +301,6 @@ class SimulationVisualizer:
             was_in_transit = drone.flight_timer > 0
 
             result = drone._move()
-
             if result is None:
                 continue
 

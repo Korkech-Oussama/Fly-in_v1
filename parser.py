@@ -73,6 +73,12 @@ class Parser:
             if not stripped or stripped.startswith('#'):
                 continue
 
+            if '#' in stripped:
+                for index, char in enumerate(stripped):
+                    if char == '#':
+                        stripped = stripped[:index]
+                        break
+
             if ':' not in stripped:
                 raise ParserError(
                     f"Line {lineno}: expected 'KEY: VALUE' format, "
