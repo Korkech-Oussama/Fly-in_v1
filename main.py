@@ -19,6 +19,10 @@ if __name__ == "__main__":
         start_hub: Zone = next(z for z in parser.zones if z.is_start)
         end_hub:   Zone = next(z for z in parser.zones if z.is_end)
 
+        start_hub.zone_drones_count = parser.nb_drones
+        start_hub.max_drones = parser.nb_drones
+        end_hub.max_drones = parser.nb_drones
+
         zone_traffic: dict[Zone, int] = {z: 0 for z in parser.zones}
         drones: list[Drone] = []
 
@@ -51,10 +55,12 @@ if __name__ == "__main__":
             for z in path_for_drone[1:]:
                 zone_traffic[z] = zone_traffic.get(z, 0) + 1
 
-        start_hub.zone_drones_count = parser.nb_drones
-
-        engine = SimulationVisualizer(parser, drones)
-        engine.run()
     except Exception as e:
         print(f"Error: {e}")
+        sys.exit(1)
+    try:
+        engine = SimulationVisualizer(parser, drones)
+        engine.run()
+    except (KeyboardInterrupt, Exception) as e:
+        print(f"Error {e}")
         sys.exit(1)

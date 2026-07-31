@@ -1,7 +1,7 @@
 # Hard Level 3: THE ULTIMATE CHALLENGE - All tricks combined
 nb_drones: 15
 
-start_hub: start 0 0 [color=green max_drones=15] #test
+start_hub: start 0 0 [color=green max_drones=15]
 
 # Layer 1: Initial distribution nightmare
 hub: dist_gate1 1 -1 [color=orange]

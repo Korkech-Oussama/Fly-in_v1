@@ -3,7 +3,7 @@ VENV = virtual_env
 PYTHON = $(VENV)/bin/python
 PIP = $(VENV)/bin/pip
 MAIN = main.py
-MAP = maps/challenger/01_the_impossible_dream.txt
+MAP = maps/easy/03_basic_capacity.txt
 
 .PHONY: install run debug clean lint lint-strict
 
@@ -15,7 +15,7 @@ install:
 
 run:
 	@echo "Running the simulation..."
-	$(PYTHON) $(MAIN) $(MAP) capacity--info
+	$(PYTHON) $(MAIN) $(MAP)
 
 debug:
 	@echo "Starting debugger..."

@@ -195,5 +195,5 @@ class Drone:
         if to_zone.is_end:
             self.arrived = True
 
-        print(f"D{self.id}-{to_zone.name}")
+        # print(f"D{self.id}-{to_zone.name}")
         return f"D{self.id}-{to_zone.name}"
